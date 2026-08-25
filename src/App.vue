@@ -74,6 +74,9 @@
             <button @click="swap" :disabled="!result" class="btn">
               结果→输入
             </button>
+            <button @click="reset" class="btn danger">
+              重置
+            </button>
           </div>
         </div>
 
@@ -177,6 +180,14 @@ function copyResult() {
 function swap() {
   input.value = result.value
   result.value = ''
+}
+
+function reset() {
+  input.value = ''
+  result.value = ''
+  key.value = ''
+  success.value = false
+  errorMsg.value = ''
 }
 
 async function fileEncrypt() {
@@ -412,6 +423,16 @@ body {
 
 .btn.primary:hover:not(:disabled) {
   background: #c73650;
+}
+
+.btn.danger {
+  background: transparent;
+  border-color: #e94560;
+  color: #e94560;
+}
+
+.btn.danger:hover {
+  background: rgba(233, 69, 96, 0.15);
 }
 
 .status {
