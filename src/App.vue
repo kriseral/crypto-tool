@@ -1,134 +1,167 @@
 <template>
   <div class="app">
-    <header class="header">
-      <h1>🔒 加密工具</h1>
-      <span class="badge">Rust + Vue</span>
-    </header>
-
-    <div class="main-layout">
-      <!-- 左侧：控制面板 -->
-      <div class="panel controls">
-        <div class="section">
-          <h3>模式</h3>
-          <div class="radio-group">
-            <label :class="{ active: mode === 'encrypt' }">
-              <input type="radio" v-model="mode" value="encrypt" /> 加密
-            </label>
-            <label :class="{ active: mode === 'decrypt' }">
-              <input type="radio" v-model="mode" value="decrypt" /> 解密
-            </label>
-          </div>
+    <el-container>
+      <el-header class="header">
+        <div class="header-left">
+          <el-icon :size="22" color="#409EFF"><Lock /></el-icon>
+          <span class="title">CryptoTool</span>
+          <el-tag type="primary" size="small" effect="light">Rust + Vue</el-tag>
         </div>
+      </el-header>
 
-        <div class="section">
-          <h3>算法类型</h3>
-          <select v-model="algorithm" class="select">
-            <optgroup label="编码">
-              <option value="base64">Base64</option>
-              <option value="base64url">Base64URL</option>
-              <option value="hex">Hex</option>
-            </optgroup>
-            <optgroup label="对称加密">
-              <option value="aes">AES-256-GCM</option>
-              <option value="des">DES</option>
-              <option value="3des">3DES</option>
-              <option value="xor">XOR</option>
-            </optgroup>
-            <optgroup label="哈希 (单向)">
-              <option value="md5">MD5</option>
-              <option value="sha256">SHA-256</option>
-              <option value="sha512">SHA-512</option>
-              <option value="blake2b">Blake2b</option>
-              <option value="blake2s">Blake2s</option>
-            </optgroup>
-            <optgroup label="校验">
-              <option value="crc32">CRC32</option>
-            </optgroup>
-          </select>
-        </div>
+      <el-container class="main-container">
+        <el-aside width="280px" class="aside">
+          <el-card shadow="never" class="control-card">
+            <template #header>
+              <span class="card-title">控制面板</span>
+            </template>
 
-        <div class="section" v-if="needsKey">
-          <h3>密钥</h3>
-          <div class="key-input">
-            <input
-              :type="showKey ? 'text' : 'password'"
-              v-model="key"
-              placeholder="输入密钥..."
-              class="input"
+            <div class="section">
+              <label class="section-label">模式</label>
+              <el-radio-group v-model="mode" size="default">
+                <el-radio-button value="encrypt">加密</el-radio-button>
+                <el-radio-button value="decrypt">解密</el-radio-button>
+              </el-radio-group>
+            </div>
+
+            <div class="section">
+              <label class="section-label">算法</label>
+              <el-select v-model="algorithm" style="width: 100%" size="default">
+                <el-option-group label="编码">
+                  <el-option label="Base64" value="base64" />
+                  <el-option label="Base64URL" value="base64url" />
+                  <el-option label="Hex" value="hex" />
+                </el-option-group>
+                <el-option-group label="对称加密">
+                  <el-option label="AES-256-GCM" value="aes" />
+                  <el-option label="DES" value="des" />
+                  <el-option label="3DES" value="3des" />
+                  <el-option label="XOR" value="xor" />
+                </el-option-group>
+                <el-option-group label="哈希 (单向)">
+                  <el-option label="MD5" value="md5" />
+                  <el-option label="SHA-256" value="sha256" />
+                  <el-option label="SHA-512" value="sha512" />
+                  <el-option label="Blake2b" value="blake2b" />
+                  <el-option label="Blake2s" value="blake2s" />
+                </el-option-group>
+                <el-option-group label="校验">
+                  <el-option label="CRC32" value="crc32" />
+                </el-option-group>
+              </el-select>
+            </div>
+
+            <div class="section" v-if="needsKey">
+              <label class="section-label">密钥</label>
+              <el-input
+                v-model="key"
+                :type="showKey ? 'text' : 'password'"
+                placeholder="输入密钥"
+                size="default"
+              >
+                <template #append>
+                  <el-button @click="showKey = !showKey" :icon="showKey ? 'View' : 'Hide'" />
+                </template>
+              </el-input>
+            </div>
+
+            <div class="section">
+              <label class="section-label">操作</label>
+              <div class="btn-group">
+                <el-button
+                  type="primary"
+                  @click="process"
+                  :loading="processing"
+                  style="width: 100%"
+                >
+                  {{ isHash ? '计算哈希' : (mode === 'encrypt' ? '加密' : '解密') }}
+                </el-button>
+                <el-button @click="copyResult" :disabled="!result" style="width: 100%">
+                  复制结果
+                </el-button>
+                <el-button @click="swap" :disabled="!result" style="width: 100%">
+                  结果 → 输入
+                </el-button>
+                <el-button type="danger" plain @click="reset" style="width: 100%">
+                  重置
+                </el-button>
+              </div>
+            </div>
+
+            <el-alert
+              v-if="result"
+              :title="success ? '操作成功' : errorMsg"
+              :type="success ? 'success' : 'error'"
+              show-icon
+              :closable="false"
+              style="margin-top: 8px"
             />
-            <button @click="showKey = !showKey" class="btn-icon" :title="showKey ? '隐藏' : '显示'">
-              {{ showKey ? '👁️' : '👁️‍🗨️' }}
-            </button>
-          </div>
-        </div>
 
-        <div class="section">
-          <h3>操作</h3>
-          <div class="btn-group">
-            <button @click="process" :disabled="processing" class="btn primary">
-              {{ processing ? '处理中...' : (isHash ? '计算哈希' : (mode === 'encrypt' ? '加密' : '解密')) }}
-            </button>
-            <button @click="copyResult" :disabled="!result" class="btn">
-              复制结果
-            </button>
-            <button @click="swap" :disabled="!result" class="btn">
-              结果→输入
-            </button>
-            <button @click="reset" class="btn danger">
-              重置
-            </button>
-          </div>
-        </div>
+            <el-divider />
 
-        <div class="section" v-if="result">
-          <h3>状态</h3>
-          <div :class="['status', success ? 'success' : 'error']">
-            {{ success ? '✓ 操作成功' : ('✗ ' + errorMsg) }}
-          </div>
-        </div>
+            <div class="section">
+              <label class="section-label">文件操作</label>
+              <div class="btn-group">
+                <el-button @click="fileEncrypt" style="width: 100%">
+                  加密文件
+                </el-button>
+                <el-button @click="fileDecrypt" style="width: 100%">
+                  解密文件
+                </el-button>
+              </div>
+            </div>
+          </el-card>
+        </el-aside>
 
-        <div class="section">
-          <h3>文件操作</h3>
-          <div class="btn-group">
-            <button @click="fileEncrypt" class="btn">
-              加密文件
-            </button>
-            <button @click="fileDecrypt" class="btn">
-              解密文件
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右侧：输入输出 -->
-      <div class="panels-io">
-        <div class="panel io">
-          <h3>输入</h3>
-          <textarea
-            v-model="input"
-            placeholder="在此输入文本..."
-            class="textarea"
-          ></textarea>
-          <div class="info">{{ input.length }} 字符</div>
-        </div>
-        <div class="panel io">
-          <h3>输出</h3>
-          <textarea
-            :value="result"
-            readonly
-            placeholder="结果将显示在这里..."
-            class="textarea"
-          ></textarea>
-          <div class="info">{{ result.length }} 字符</div>
-        </div>
-      </div>
-    </div>
+        <el-main class="main-content">
+          <el-row :gutter="16" style="height: 100%">
+            <el-col :span="12" style="height: 100%">
+              <el-card shadow="never" class="io-card">
+                <template #header>
+                  <div class="io-header">
+                    <span class="card-title">输入</span>
+                    <el-text type="info" size="small">{{ input.length }} 字符</el-text>
+                  </div>
+                </template>
+                <el-input
+                  v-model="input"
+                  type="textarea"
+                  :autosize="false"
+                  placeholder="在此输入文本..."
+                  resize="none"
+                />
+              </el-card>
+            </el-col>
+            <el-col :span="12" style="height: 100%">
+              <el-card shadow="never" class="io-card">
+                <template #header>
+                  <div class="io-header">
+                    <span class="card-title">输出</span>
+                    <el-text type="info" size="small">{{ result.length }} 字符</el-text>
+                  </div>
+                </template>
+                <el-input
+                  :model-value="result"
+                  type="textarea"
+                  :autosize="false"
+                  readonly
+                  placeholder="结果将显示在这里..."
+                  resize="none"
+                />
+              </el-card>
+            </el-col>
+          </el-row>
+        </el-main>
+      </el-container>
+    </el-container>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { Lock } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const input = ref('')
 const result = ref('')
@@ -146,8 +179,7 @@ const needsKey = computed(() => ['aes', 'des', '3des', 'xor'].includes(algorithm
 
 async function process() {
   if (!input.value) {
-    errorMsg.value = '请输入内容'
-    success.value = false
+    ElMessage.warning('请输入内容')
     return
   }
 
@@ -162,10 +194,16 @@ async function process() {
     result.value = res.data
     success.value = res.success
     errorMsg.value = res.error || ''
+    if (res.success) {
+      ElMessage.success('操作成功')
+    } else {
+      ElMessage.error(res.error || '操作失败')
+    }
   } catch (e) {
     result.value = ''
     success.value = false
     errorMsg.value = String(e)
+    ElMessage.error(String(e))
   } finally {
     processing.value = false
   }
@@ -174,6 +212,7 @@ async function process() {
 function copyResult() {
   if (result.value) {
     navigator.clipboard.writeText(result.value)
+    ElMessage.success('已复制到剪贴板')
   }
 }
 
@@ -188,6 +227,7 @@ function reset() {
   key.value = ''
   success.value = false
   errorMsg.value = ''
+  ElMessage.info('已重置')
 }
 
 async function fileEncrypt() {
@@ -206,9 +246,15 @@ async function fileEncrypt() {
     success.value = res.success
     errorMsg.value = res.error || ''
     result.value = res.data
+    if (res.success) {
+      ElMessage.success('文件加密成功')
+    } else {
+      ElMessage.error(res.error || '文件加密失败')
+    }
   } catch (e) {
     success.value = false
     errorMsg.value = String(e)
+    ElMessage.error(String(e))
   }
 }
 
@@ -228,9 +274,15 @@ async function fileDecrypt() {
     success.value = res.success
     errorMsg.value = res.error || ''
     result.value = res.data
+    if (res.success) {
+      ElMessage.success('文件解密成功')
+    } else {
+      ElMessage.error(res.error || '文件解密失败')
+    }
   } catch (e) {
     success.value = false
     errorMsg.value = String(e)
+    ElMessage.error(String(e))
   }
 }
 </script>
@@ -242,258 +294,141 @@ async function fileDecrypt() {
   box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  height: 100vh;
-  overflow: hidden;
+html, body, #app {
+  height: 100%;
+  font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  background: #F2F3F5;
+  color: #303133;
 }
 
 .app {
   height: 100vh;
-  display: flex;
-  flex-direction: column;
+}
+
+.el-container {
+  height: 100%;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: #16213e;
-  border-bottom: 1px solid #0f3460;
+  background: #FFFFFF;
+  border-bottom: 1px solid #DCDFE6;
+  height: 56px;
+  padding: 0 24px;
 }
 
-.header h1 {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.badge {
-  background: #e94560;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.main-layout {
+.header-left {
   display: flex;
-  flex: 1;
-  overflow: hidden;
+  align-items: center;
+  gap: 10px;
 }
 
-.controls {
-  width: 260px;
-  min-width: 260px;
-  border-right: 1px solid #0f3460;
+.title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.aside {
+  background: #FFFFFF;
+  border-right: 1px solid #DCDFE6;
   overflow-y: auto;
-  padding: 12px;
 }
 
-.panels-io {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.control-card {
+  border: none;
+  border-radius: 0;
+  height: 100%;
 }
 
-.panel {
-  background: #16213e;
-  border-radius: 8px;
-  margin: 8px;
+.control-card .el-card__header {
+  background: #FAFAFA;
+  border-bottom: 1px solid #EBEEF5;
+  padding: 12px 20px;
+}
+
+.control-card .el-card__body {
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
 }
 
 .section {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-.section h3 {
-  font-size: 13px;
-  color: #888;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.radio-group {
-  display: flex;
-  gap: 8px;
-}
-
-.radio-group label {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  background: #1a1a2e;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.radio-group label.active {
-  background: #0f3460;
-  border-color: #e94560;
-}
-
-.radio-group input {
-  display: none;
-}
-
-.select {
-  width: 100%;
-  padding: 8px 12px;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
+.section-label {
+  display: block;
   font-size: 14px;
-  cursor: pointer;
-}
-
-.select:focus {
-  outline: none;
-  border-color: #e94560;
-}
-
-.key-input {
-  display: flex;
-  gap: 6px;
-}
-
-.input {
-  flex: 1;
-  padding: 8px 12px;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.input:focus {
-  outline: none;
-  border-color: #e94560;
-}
-
-.btn-icon {
-  padding: 8px;
-  background: #1a1a2e;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
+  color: #606266;
+  margin-bottom: 8px;
+  font-weight: 500;
 }
 
 .btn-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
-.btn {
-  padding: 8px 12px;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+.main-content {
+  background: #F2F3F5;
+  padding: 16px;
+  overflow: hidden;
 }
 
-.btn:hover:not(:disabled) {
-  background: #0f3460;
+.io-card {
+  height: calc(100vh - 104px);
+  border: 1px solid #EBEEF5;
+  border-radius: 4px;
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.io-card .el-card__header {
+  background: #FAFAFA;
+  border-bottom: 1px solid #EBEEF5;
+  padding: 12px 20px;
 }
 
-.btn.primary {
-  background: #e94560;
-  border-color: #e94560;
-  font-weight: 600;
-}
-
-.btn.primary:hover:not(:disabled) {
-  background: #c73650;
-}
-
-.btn.danger {
-  background: transparent;
-  border-color: #e94560;
-  color: #e94560;
-}
-
-.btn.danger:hover {
-  background: rgba(233, 69, 96, 0.15);
-}
-
-.status {
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.status.success {
-  background: rgba(0, 200, 100, 0.15);
-  color: #00c864;
-  border: 1px solid rgba(0, 200, 100, 0.3);
-}
-
-.status.error {
-  background: rgba(233, 69, 96, 0.15);
-  color: #e94560;
-  border: 1px solid rgba(233, 69, 96, 0.3);
-}
-
-.io {
-  flex: 1;
+.io-card .el-card__body {
+  padding: 16px;
+  height: calc(100% - 48px);
   display: flex;
   flex-direction: column;
-  padding: 12px;
 }
 
-.io h3 {
-  font-size: 13px;
-  color: #888;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.textarea {
+.io-card .el-card__body .el-textarea {
   flex: 1;
-  width: 100%;
-  padding: 12px;
-  background: #1a1a2e;
-  color: #e0e0e0;
-  border: 1px solid #0f3460;
-  border-radius: 6px;
-  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.io-card .el-card__body .el-textarea .el-textarea__inner {
+  height: 100% !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
-  resize: none;
+  color: #303133;
+  background: #FFFFFF;
+  border: 1px solid #DCDFE6;
+  border-radius: 4px;
+  padding: 12px;
 }
 
-.textarea:focus {
-  outline: none;
-  border-color: #e94560;
+.io-card .el-card__body .el-textarea .el-textarea__inner:focus {
+  border-color: #409EFF;
+  box-shadow: 0 0 0 1px #409EFF inset;
 }
 
-.textarea[readonly] {
-  opacity: 0.8;
+.io-card .el-card__body .el-textarea .el-textarea__inner[readonly] {
+  background: #FAFAFA;
+  color: #606266;
 }
 
-.info {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #666;
-  text-align: right;
+.io-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>
